@@ -1,0 +1,11 @@
+Loading dataset …
+  27,013 rows × 43 features
+
+Fitting linear dynamics model (Ridge regression) …
+[LinearDynamicsModel] R² = 0.9761
+
+Building environments …
+
+=======================================================
+  STRATEGY 1 — Pure RL  (200,000 timesteps)
+=======================================================
