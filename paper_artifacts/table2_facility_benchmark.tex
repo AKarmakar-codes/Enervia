@@ -1,0 +1,16 @@
+\begin{table}[h]
+\centering
+\caption{Facility Cooling Control Benchmark over 50 Held-Out Telemetry Test Episodes}
+\label{tab:facility_benchmark}
+\small
+\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{Energy Cost} & \textbf{Violation Rate (\%)} & \textbf{Peak Temp ($\sigma$)} & \textbf{Latency (ms)} \\
+\hline
+\textbf{Thermostat} & $21337.2 \pm 483.3$ & $0.01\%$ & $1.69 \pm 0.18$ & $0.02$ \\
+\textbf{Autonomous MPC} & $14607.2 \pm 110.3$ & $0.00\%$ & $1.97 \pm 0.01$ & $2.86$ \\
+\textbf{Pure RL} & $21358.2 \pm 12426.0$ & $43.34\%$ & $1.83 \pm 1.25$ & $0.25$ \\
+\textbf{Safe RL (RL+MPC)} & $22935.5 \pm 10897.4$ & $37.33\%$ & $1.35 \pm 0.73$ & $0.32$ \\
+\hline
+\end{tabular}
+\end{table}

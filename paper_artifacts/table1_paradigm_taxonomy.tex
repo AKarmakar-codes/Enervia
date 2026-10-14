@@ -1,0 +1,19 @@
+\begin{table*}[t]
+\centering
+\caption{Taxonomy and Theoretical Comparison of Data Centre Cooling Optimization Paradigms}
+\label{tab:paradigm_taxonomy}
+\small
+\begin{tabular}{lccccc}
+\hline
+\textbf{Optimization Paradigm} & \textbf{Mathematical Formulation} & \textbf{Optimality Guarantee} & \textbf{Safety Constraint} & \textbf{Lookahead} & \textbf{Decision Latency} \\
+\hline
+\textbf{Rule-Based Thermostat} & Feedback Hysteresis & None (Heuristic) & Empirical / Soft & None (Reactive) & $<0.01$ ms \\
+\textbf{Steady-State LP (M1)} & Continuous Linear Program & Global Minimum (Simplex) & Exact Algebraic Bound & Steady-State & $\sim 2.5$ ms \\
+\textbf{Dynamic ZOH LP (M2)} & Multi-Period Continuous LP & Global Minimum (Simplex) & Zero Violations (Hard) & Full Horizon (30 min) & $\sim 150$ ms \\
+\textbf{Rolling-Horizon LP} & Receding-Horizon LP & Receding Horizon Local & Zero Violations (Hard) & Sliding ($2$ min) & $\sim 13.4$ ms \\
+\textbf{Autonomous MPC} & Receding-Horizon QP & Locally Optimal (Convex) & Hard Constraints (OSQP) & Horizon ($5$ steps) & $\sim 0.6$ ms \\
+\textbf{Pure Deep RL (PPO)} & Model-Free Policy Gradient & Local Extrema (Stochastic) & Statistical Penalty Only & Value Discount ($\gamma$) & $\sim 0.1$ ms \\
+\textbf{Hybrid Safe-RL (RL+MPC)} & Policy + OSQP Projection & Near-Optimal Energy & Hard Boundary (Guaranteed) & Receding QP Filter & $\sim 0.7$ ms \\
+\hline
+\end{tabular}
+\end{table*}

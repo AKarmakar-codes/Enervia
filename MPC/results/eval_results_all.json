@@ -1,0 +1,39 @@
+{
+  "Thermostat": {
+    "energy_mean": 21337.20994245529,
+    "energy_std": 483.2710627191496,
+    "violation_pct_mean": 0.008,
+    "violation_pct_std": 0.05600000000000001,
+    "peak_temp_mean": 1.6907696318626404,
+    "peak_temp_std": 0.1819927695061833,
+    "latency_ms": 0.02160500635392964
+  },
+  "Autonomous MPC": {
+    "energy_mean": 14607.2209790802,
+    "energy_std": 110.25174426037267,
+    "violation_pct_mean": 0.004,
+    "violation_pct_std": 0.027999999999999997,
+    "peak_temp_mean": 1.9662768840789795,
+    "peak_temp_std": 0.008685692921103057,
+    "latency_ms": 2.8568342937529088
+  },
+  "Pure RL": {
+    "energy_mean": 21358.160525875093,
+    "energy_std": 12426.04184568393,
+    "violation_pct_mean": 43.344,
+    "violation_pct_std": 46.98307848576974,
+    "peak_temp_mean": 1.826150282919407,
+    "peak_temp_std": 1.2459814916627328,
+    "latency_ms": 0.24610248629003764
+  },
+  "Safe RL (RL+MPC)": {
+    "energy_mean": 22935.54083026886,
+    "energy_std": 10897.43217290226,
+    "violation_pct_mean": 37.328,
+    "violation_pct_std": 37.367017756304826,
+    "peak_temp_mean": 1.347068159878254,
+    "peak_temp_std": 0.725695894899995,
+    "latency_ms": 0.32092203928157687,
+    "intervention_pct": 99.096
+  }
+}

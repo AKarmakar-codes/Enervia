@@ -1,0 +1,17 @@
+\begin{table}[h]
+\centering
+\caption{Workload Placement Benchmark at $T_{\text{amb}} = 41\ ^\circ\text{C}$ over 30-Minute Horizon}
+\label{tab:workload_benchmark}
+\small
+\begin{tabular}{lcccc}
+\hline
+\textbf{Allocation Method} & \textbf{GPU Energy (MJ)} & \textbf{Over Limit (\%)} & \textbf{Peak Temp ($^\circ\text{C}$)} & \textbf{Forced Units (u$\cdot$s)} \\
+\hline
+\textbf{LP (M2)} & 2.1888 & 0.0\% & 81.0 & 0 \\
+\textbf{Greedy lowest-energy} & 2.1790 & 15.3\% & 92.6 & 0 \\
+\textbf{Capacity-proportional} & 2.5807 & 3.9\% & 90.2 & 0 \\
+\textbf{Myopic thermal greedy} & 2.2119 & 0.7\% & 86.1 & 122 \\
+\textbf{Rolling-Horizon LP ($H=12$)} & 2.1888 & 0.0\% & 81.0 & 0 \\
+\hline
+\end{tabular}
+\end{table}

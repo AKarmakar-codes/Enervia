@@ -6,7 +6,9 @@ Linear MPC safety filter for datacenter cooling.
 Two-phase design
 ────────────────
 Phase 1 — Offline fit (LinearDynamicsModel.fit):
-    Fit  T_{t+1} = A @ T_t + B @ P_t + c  via Ridge regression on training data.
+    Fit  T_{t+1} = A @ T_t + B @ P_t + c.
+    A and c model autonomous thermal drift/inertia from historical telemetry.
+    B is the physics-consistent cooling actuation matrix (negative temperature response).
     T_t  = [T_MEAS(8), T_out(8), T_celCC(8), TLHC(1)]   (25-dim temperature state)
     P_t  = [P_ac(8), P_cu(8)]                            (16-dim power / control)
 
@@ -16,14 +18,14 @@ Phase 2 — Online projection (MPCGuardrail.project):
         min   ‖du − du_rl‖²          (stay as close as possible to RL intent)
         s.t.  T_celCC[k] ≤ T_MAX     for k = 1 … N   (rack temperature safety)
               du ∈ [−1, 1]^(N·n_u)   (actuator delta limits)
+              P_curr + du[0] ∈ [−CLIP_POWER, CLIP_POWER] (actuator saturation)
 
-    The constraint is linearised via the unrolled prediction:
+    The constraint is linearized via the unrolled prediction:
         T[k] = T_free[k] + S[k] @ du
     where S is the block-lower-triangular sensitivity matrix and T_free is the
-    open-loop (zero-delta) predicted trajectory.
+    open-loop (zero-delta) baseline predicted trajectory.
 
     Solved with OSQP (<1 ms per call on CPU for N=5, n_u=16).
-    Falls back to unmodified RL action if the QP is infeasible.
 """
 
 from __future__ import annotations
@@ -52,13 +54,14 @@ N_TEMP    = 25    # temperature state dimension
 N_CTRL    = 16    # control input dimension
 T_MAX     = 2.0   # standardised upper safety bound (+2σ)
 N_HORIZON = 5     # MPC prediction horizon (steps)
+CLIP_POWER= 2.5   # actuator saturation limit
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 class LinearDynamicsModel:
     """Offline linear temperature-dynamics model: T' = A T + B P + c."""
 
-    def __init__(self, alpha: float = 1.0):
+    def __init__(self, alpha: float = 10.0):
         self._ridge = Ridge(alpha=alpha, fit_intercept=True)
         self.A: np.ndarray | None = None
         self.B: np.ndarray | None = None
@@ -67,7 +70,8 @@ class LinearDynamicsModel:
 
     def fit(self, data: np.ndarray, col_names: list[str]) -> "LinearDynamicsModel":
         """
-        Fit the model from raw (standardised) dataset rows.
+        Fit the autonomous thermal inertia from data, and build physics-consistent
+        cooling authority matrix B.
 
         Parameters
         ----------
@@ -75,23 +79,34 @@ class LinearDynamicsModel:
         col_names : list of column name strings
         """
         idx = {c: i for i, c in enumerate(col_names)}
-
         t_idx = np.array([idx[c] for c in T_STATE_COLS])
-        p_idx = np.array([idx[c] for c in POWER_COLS])
 
         T_curr = data[:-1, t_idx]   # (T-1, 25)
-        P_curr = data[:-1, p_idx]   # (T-1, 16)
         T_next = data[1:,  t_idx]   # (T-1, 25)
 
-        X = np.concatenate([T_curr, P_curr], axis=1)   # (T-1, 41)
-        self._ridge.fit(X, T_next)
+        # Fit drift & natural heat transfer A and c
+        self._ridge.fit(T_curr, T_next)
+        self.A = self._ridge.coef_.astype(np.float32)         # (25, 25)
+        self.c = self._ridge.intercept_.astype(np.float32)    # (25,)
+        self.r2_ = float(self._ridge.score(T_curr, T_next))
 
-        coef = self._ridge.coef_                # (25, 41)
-        self.A = coef[:, :N_TEMP]               # (25, 25)
-        self.B = coef[:, N_TEMP:]               # (25, 16)
-        self.c = self._ridge.intercept_         # (25,)
-        self.r2_ = self._ridge.score(X, T_next)
-        print(f"[LinearDynamicsModel] R² = {self.r2_:.4f}")
+        # Physics-consistent cooling actuation matrix B:
+        # Rows 16..23 are T_celCC (the 8 cold corridors)
+        # Columns 0..7 are P_ac, columns 8..15 are P_cu
+        B = np.zeros((N_TEMP, N_CTRL), dtype=np.float32)
+        for i in range(8):
+            B[16 + i, i]        = -0.06     # AC direct zone cooling
+            B[16 + i, 8 + i]    = -0.04     # CU condensing chiller cooling
+            if i > 0:
+                B[16 + i, i - 1] = -0.015   # adjacent zone cross-coupling
+            if i < 7:
+                B[16 + i, i + 1] = -0.015   # adjacent zone cross-coupling
+            # Cooling influence on ambient room sensors (T_MEAS)
+            B[i, i]             = -0.02
+            B[i, 8 + i]         = -0.02
+
+        self.B = B
+        print(f"[LinearDynamicsModel] Autonomous Thermal Drift R² = {self.r2_:.4f}")
         return self
 
     def predict_one(self, T: np.ndarray, P: np.ndarray) -> np.ndarray:
@@ -102,7 +117,7 @@ class LinearDynamicsModel:
 # ─────────────────────────────────────────────────────────────────────────────
 class MPCGuardrail:
     """
-    Online MPC safety filter.  Call `project(T_state, P_curr, du_rl)` at
+    Online MPC safety filter. Call `project(T_state, P_curr, du_rl)` at
     every environment step to obtain a safe action.
 
     Parameters
@@ -127,9 +142,7 @@ class MPCGuardrail:
         N = self.N
 
         # ── Pre-compute sensitivity matrix S (N·n_x × N·n_u) ───────────────
-        # S[k·n_x:(k+1)·n_x, j·n_u:(j+1)·n_u] = A^(k-j) @ B   for k >= j
         S = np.zeros((N * n_x, N * n_u))
-        # Pre-compute A powers
         Apow = [np.eye(n_x)]
         for _ in range(N):
             Apow.append(Apow[-1] @ A)
@@ -140,19 +153,16 @@ class MPCGuardrail:
                   j * n_u:(j + 1) * n_u] = Apow[k - j] @ B
 
         # ── Selector matrix: pick T_celCC rows from each predicted state ───
-        # C_sel ∈ R^(8 × n_x)
         n_celcc = len(CELCC_IN_TSTATE)
         C_sel = np.zeros((n_celcc, n_x))
         for r, c in enumerate(CELCC_IN_TSTATE):
             C_sel[r, c] = 1.0
 
-        # C_block ∈ R^(N·n_celcc × N·n_x) — block-diagonal with C_sel
         C_block = np.kron(np.eye(N), C_sel)
 
         # ── Constraint sensitivity: maps du → T_celCC predictions ──────────
-        # shape: (N·n_celcc, N·n_u)
         self._CS = C_block @ S                # (N·8, N·16)
-        self._C_block = C_block               # kept to compute T_free part
+        self._C_block = C_block
         self._Apow  = Apow
 
         n_var = N * n_u
@@ -163,8 +173,6 @@ class MPCGuardrail:
         P_osqp = sp.eye(n_var, format="csc")
 
         # ── OSQP constraint matrix (stacked) ─────────────────────────────
-        # Row block 1: CS @ du ≤ T_max - CS_free  (temperature upper bound)
-        # Row block 2: I @ du ∈ [-1, 1]           (box on delta action)
         CS_sparse  = sp.csc_matrix(self._CS)
         eye_sparse = sp.eye(n_var, format="csc")
         A_osqp = sp.vstack([CS_sparse, eye_sparse], format="csc")
@@ -175,7 +183,7 @@ class MPCGuardrail:
         self._n_celcc = n_celcc
         self._n_con_temp = n_con_temp
 
-        # Initialise OSQP solver (problem structure is constant)
+        # Initialise OSQP solver
         self._solver = osqp.OSQP()
         dummy_q = np.zeros(n_var)
         dummy_l = np.full(n_con_temp + n_con_box, -np.inf)
@@ -203,7 +211,7 @@ class MPCGuardrail:
         for _ in range(self.N):
             T = A @ T + B @ P0 + c
             traj.append(T)
-        return np.concatenate(traj)   # (N·n_x,)
+        return np.concatenate(traj)
 
     def project(
         self,
@@ -226,46 +234,47 @@ class MPCGuardrail:
         modified : True if the MPC changed the action
         """
         N, n_u   = self.N, N_CTRL
-        n_celcc  = self._n_celcc
 
-        # Free-response temperature trajectory (shape N·n_x)
-        T_free = self._free_response(T_state, P_curr + du_rl[:n_u])
-        # Note: we use (P_curr + du_rl) as a warm start for the solver;
-        # the QP objective will pull toward du_rl anyway.
+        # Clamp P_curr to actuator limits to guarantee l_box <= u_box
+        P_curr_c = np.clip(P_curr, -CLIP_POWER, CLIP_POWER)
 
-        # T_celCC from free response, shape (N·n_celcc,)
+        # Free-response temperature trajectory assuming delta=0 (baseline)
+        T_free = self._free_response(T_state, P_curr_c)
         T_celcc_free = self._C_block @ T_free
 
-        # ── Assemble bounds ───────────────────────────────────────────────
-        # Temperature upper bound: CS @ du ≤ t_max - T_celcc_free
+        # Temperature upper bound: CS @ du <= t_max - T_celcc_free
         u_temp = self.t_max - T_celcc_free               # (N·n_celcc,)
         l_temp = np.full(self._n_con_temp, -np.inf)
 
-        # Box: du ∈ [-1, 1]
-        u_box = np.ones(self._n_var)
-        l_box = -np.ones(self._n_var)
+        # Box constraints on du:
+        # du in [-1, 1], and P_curr + du in [-CLIP_POWER, CLIP_POWER]
+        l_box = np.full(self._n_var, -1.0)
+        u_box = np.full(self._n_var, 1.0)
+        l_box[:n_u] = np.maximum(-1.0, -CLIP_POWER - P_curr_c)
+        u_box[:n_u] = np.minimum(1.0, CLIP_POWER - P_curr_c)
 
         l_osqp = np.concatenate([l_temp, l_box])
         u_osqp = np.concatenate([u_temp, u_box])
 
-        # ── Linear cost: q = -du_rl tiled for each horizon step ──────────
-        # Objective: ‖du − du_rl‖² ⇒ min 0.5 duᵀdu − du_rl·du
-        # We only apply the cost to the first step's action (the one we use)
-        q = np.zeros(self._n_var)
-        q[:n_u] = -du_rl   # penalise only step-0 deviation
+        # Ensure mathematical consistency: l_osqp <= u_osqp
+        u_osqp = np.maximum(u_osqp, l_osqp)
 
-        # ── Update & solve ─────────────────────────────────────────────────
+        # Cost: penalize step-0 deviation from du_rl
+        q = np.zeros(self._n_var)
+        q[:n_u] = -du_rl
+
+        # Solve QP
         self._solver.update(q=q, l=l_osqp, u=u_osqp)
         result = self._solver.solve()
 
         if result.info.status in ("solved", "solved_inaccurate"):
-            du_safe = np.clip(result.x[:n_u], -1.0, 1.0).astype(np.float32)
+            du_safe = np.clip(result.x[:n_u], l_box[:n_u], u_box[:n_u]).astype(np.float32)
             modified = bool(np.linalg.norm(du_safe - du_rl) > 1e-3)
         else:
-            # QP infeasible or solver failure — fall back to RL action
-            warnings.warn(f"[MPC] Solver status: {result.info.status}. Using RL action.")
-            du_safe  = du_rl.astype(np.float32)
-            modified = False
+            # QP infeasible or solver failure — apply safety fallback (boost cooling)
+            warnings.warn(f"[MPC] Solver status: {result.info.status}. Applying safety fallback.")
+            du_safe = np.clip(np.full(n_u, 0.5, dtype=np.float32), l_box[:n_u], u_box[:n_u])
+            modified = True
 
         return du_safe, modified
 
@@ -275,10 +284,6 @@ class MPCGuardrailWrapper(gym.Wrapper):
     """
     Gymnasium wrapper that intercepts RL actions and projects them onto
     the safe set via the MPC guardrail before passing to the environment.
-
-    Extra keys added to `info`:
-        mpc_modified  : bool — whether the action was changed
-        du_rl_original: original (uncorrected) RL action
     """
 
     def __init__(self, env: gym.Env, guardrail: MPCGuardrail, col_names: list[str]):
@@ -306,7 +311,7 @@ class MPCGuardrailWrapper(gym.Wrapper):
         obs, reward, terminated, truncated, info = self.env.step(du_safe)
         self._last_obs = obs
 
-        self.total_steps      += 1
+        self.total_steps        += 1
         self.modification_count += int(modified)
         info["mpc_modified"]      = modified
         info["du_rl_original"]    = du_rl
