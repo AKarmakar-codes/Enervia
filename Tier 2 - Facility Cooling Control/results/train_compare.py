@@ -29,11 +29,13 @@ import json
 import warnings
 from pathlib import Path
 
-# Add project root to path for robust imports
+# Add project root and local directories to path for robust imports
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+TIER2_DIR = HERE.parent
+for p in [ROOT, TIER2_DIR, HERE]:
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
 
 import numpy as np
 import pandas as pd
@@ -46,21 +48,33 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 
-from MPC.datacenter_env import DatacenterEnv, T_CELCC_MAX, EPISODE_LEN, CLIP_POWER
-from MPC.results.mpc_guardrail import (
-    LinearDynamicsModel, MPCGuardrail, MPCGuardrailWrapper,
-    T_STATE_COLS, POWER_COLS as MPC_POWER_COLS,
-)
-from MPC.baseline_controllers import ThermostatController, AutonomousMPCController
+try:
+    from datacenter_env import DatacenterEnv, T_CELCC_MAX, EPISODE_LEN, CLIP_POWER
+    from mpc_guardrail import (
+        LinearDynamicsModel, MPCGuardrail, MPCGuardrailWrapper,
+        T_STATE_COLS, POWER_COLS as MPC_POWER_COLS,
+    )
+    from baseline_controllers import ThermostatController, AutonomousMPCController
+except ImportError:
+    from MPC.datacenter_env import DatacenterEnv, T_CELCC_MAX, EPISODE_LEN, CLIP_POWER
+    from MPC.results.mpc_guardrail import (
+        LinearDynamicsModel, MPCGuardrail, MPCGuardrailWrapper,
+        T_STATE_COLS, POWER_COLS as MPC_POWER_COLS,
+    )
+    from MPC.baseline_controllers import ThermostatController, AutonomousMPCController
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-RESULTS_DIR = HERE if HERE.name == "results" else (HERE / "MPC" / "results")
+RESULTS_DIR = HERE
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 if (HERE / "final_dataset_std.csv").exists():
     DATA_PATH = HERE / "final_dataset_std.csv"
 elif (HERE.parent / "final_dataset_std.csv").exists():
     DATA_PATH = HERE.parent / "final_dataset_std.csv"
+elif (ROOT / "Tier 2 - Facility Cooling Control" / "final_dataset_std.csv").exists():
+    DATA_PATH = ROOT / "Tier 2 - Facility Cooling Control" / "final_dataset_std.csv"
+elif (ROOT / "Tier 2" / "final_dataset_std.csv").exists():
+    DATA_PATH = ROOT / "Tier 2" / "final_dataset_std.csv"
 else:
     DATA_PATH = ROOT / "MPC" / "final_dataset_std.csv"
 

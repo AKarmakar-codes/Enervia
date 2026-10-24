@@ -31,9 +31,28 @@ ARTIFACTS_DIR = ROOT / "paper_artifacts"
 ARTIFACTS_DIR.mkdir(exist_ok=True)
 
 # ── Paths to input data ───────────────────────────────────────────────────────
-PATH_MIDSEM_RESULTS = ROOT / "Midsem code and figures" / "results.json"
-PATH_EXTENSIONS_RESULTS = ROOT / "Midsem code and figures" / "extensions_results.json"
-PATH_MPC_RESULTS = ROOT / "MPC" / "results" / "eval_results_all.json"
+def _find_path(*relative_candidates: Path) -> Path:
+    for cand in relative_candidates:
+        full = ROOT / cand
+        if full.exists():
+            return full
+    return ROOT / relative_candidates[0]
+
+PATH_MIDSEM_RESULTS = _find_path(
+    Path("Tier 1 - Workload Allocation/results.json"),
+    Path("Tier 1/results.json"),
+    Path("Midsem code and figures/results.json"),
+)
+PATH_EXTENSIONS_RESULTS = _find_path(
+    Path("Tier 1 - Workload Allocation/extensions_results.json"),
+    Path("Tier 1/extensions_results.json"),
+    Path("Midsem code and figures/extensions_results.json"),
+)
+PATH_MPC_RESULTS = _find_path(
+    Path("Tier 2 - Facility Cooling Control/results/eval_results_all.json"),
+    Path("Tier 2/results/eval_results_all.json"),
+    Path("MPC/results/eval_results_all.json"),
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -15,12 +15,27 @@ Implements non-RL baseline controllers for datacenter cooling:
 """
 
 from __future__ import annotations
+import sys
+from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 import osqp
 
-from MPC.datacenter_env import CLIP_POWER, T_CELCC_MAX, T_CELCC_COLS, POWER_COLS
-from MPC.results.mpc_guardrail import LinearDynamicsModel, T_STATE_COLS
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+if str(_HERE / "results") not in sys.path:
+    sys.path.insert(0, str(_HERE / "results"))
+
+try:
+    from datacenter_env import CLIP_POWER, T_CELCC_MAX, T_CELCC_COLS, POWER_COLS
+except ImportError:
+    from MPC.datacenter_env import CLIP_POWER, T_CELCC_MAX, T_CELCC_COLS, POWER_COLS
+
+try:
+    from mpc_guardrail import LinearDynamicsModel, T_STATE_COLS
+except ImportError:
+    from MPC.results.mpc_guardrail import LinearDynamicsModel, T_STATE_COLS
 
 
 # ─────────────────────────────────────────────────────────────────────────────

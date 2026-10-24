@@ -2,8 +2,8 @@
   "best_setpoint_with_leakage": 39.0,
   "rolling_horizon_lp": {
     "horizon_steps": 12,
-    "mean_solve_ms": 13.432872072250271,
-    "p95_solve_ms": 16.744359213043932,
+    "mean_solve_ms": 10.4961541613496,
+    "p95_solve_ms": 13.046025648509385,
     "violations_pct": 0.0,
     "peak_temp": 81.00000000000006
   },

@@ -91,7 +91,7 @@ The paper structures cooling optimization into a cohesive two-tier hierarchy:
 
 ## 4. Implementation Roadmap: Scripts to Create and Modify
 
-### 4.1 Tier 2 (Facility Level — `MPC/`)
+### 4.1 Tier 2 (Facility Level — `Tier 2 - Facility Cooling Control/`)
 
 #### 1. Refactor `MPC/datacenter_env.py` (Closed-Loop Digital Twin)
 - **File**: `MPC/datacenter_env.py`
@@ -134,10 +134,10 @@ The paper structures cooling optimization into a cohesive two-tier hierarchy:
 
 ---
 
-### 4.2 Tier 1 (Workload Level — `Midsem code and figures/`)
+### 4.2 Tier 1 (Workload Level — `Tier 1 - Workload Allocation/`)
 
-#### 5. Create `Midsem code and figures/thermal_lp_extensions.py`
-- **File**: `Midsem code and figures/thermal_lp_extensions.py`
+#### 5. Create `Tier 1 - Workload Allocation/thermal_lp_extensions.py`
+- **File**: `Tier 1 - Workload Allocation/thermal_lp_extensions.py`
 - **Action**: Create new script
 - **Enhancements beyond Midsem Report**:
   - **Temperature-Dependent Leakage Current**: Add $P_{\text{leak}, j} = \beta_j (T_{jt} - T_{\text{ref}})$.
@@ -201,7 +201,7 @@ python MPC/results/train_compare.py
 # STEP 4: Run Workload Allocation Extensions
 # -------------------------------------------------------------
 # Executes M1, M2, Leakage-aware LP, and Rolling-Horizon LP
-python "Midsem code and figures/thermal_lp_extensions.py"
+python "Tier 1 - Workload Allocation/thermal_lp_extensions.py"
 
 # -------------------------------------------------------------
 # STEP 5: Compile Unified Publication Artifacts
@@ -260,7 +260,7 @@ References
 All experimental steps have been executed and verified:
 
 ### 7.1 Tier 1 Workload Placement (LP)
-* **Silicon Leakage Model**: Formulated in `Midsem code and figures/thermal_lp_extensions.py`. Proved the existence of an interior optimal ambient temperature setpoint at **$T^* = 39.0\ ^\circ\text{C}$** where cooling savings balance leakage power increases (Figure: `Midsem code and figures/figures/fig7_leakage_setpoint_optimum.png`).
+* **Silicon Leakage Model**: Formulated in `Tier 1 - Workload Allocation/thermal_lp_extensions.py`. Proved the existence of an interior optimal ambient temperature setpoint at **$T^* = 39.0\ ^\circ\text{C}$** where cooling savings balance leakage power increases (Figure: `Tier 1 - Workload Allocation/figures/fig7_leakage_setpoint_optimum.png`).
 * **Rolling-Horizon LP (Workload MPC)**: Implemented sliding-window receding LP ($H=12$ steps = 2 min), achieving **$13.43\text{ ms}$** mean solve time with **$0.00\%$ thermal violations** under normal traffic and under a $40\%$ query surge spike test.
 
 ### 7.2 Tier 2 Facility Cooling Control (Telemetry & MPC/RL)

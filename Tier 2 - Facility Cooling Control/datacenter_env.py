@@ -22,7 +22,10 @@ import gymnasium as gym
 from gymnasium import spaces
 
 if TYPE_CHECKING:
-    from MPC.results.mpc_guardrail import LinearDynamicsModel
+    try:
+        from mpc_guardrail import LinearDynamicsModel
+    except ImportError:
+        from MPC.results.mpc_guardrail import LinearDynamicsModel
 
 # ── Column definitions (must match the CSV header order) ─────────────────────
 P_AC_COLS   = [f"P_ac-{i}"   for i in range(8)]
